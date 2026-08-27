@@ -1,0 +1,31 @@
+{
+  "manifest_version": 2,
+  "name": "ZEO - Descargar video",
+  "version": "1.0.0",
+  "description": "Envía la página actual a Zeo Video Downloader para descargar contenido propio o autorizado.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "zeo-downloader@local",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "notifications",
+    "http://127.0.0.1:17835/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_action": {
+    "default_title": "ZEO: descargar video de esta página",
+    "default_icon": {
+      "48": "icons/zeo.svg"
+    }
+  },
+  "icons": {
+    "48": "icons/zeo.svg",
+    "96": "icons/zeo.svg"
+  }
+}
