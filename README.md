@@ -1,2 +1,41 @@
-# zeo-video-downloader
-Gestor de descargas y grabación de pantalla para Windows
+# Zeo Video Downloader 1.8
+
+Gestor de descargas y grabación de pantalla para Windows desarrollado por **DUPUY+SOLUTIONS**.
+
+## Descargar
+
+**[Descargar Zeo Video Downloader 1.8](https://github.com/dupuy-solutions/zeo-video-downloader/raw/refs/heads/main/downloads/ZeoVideoDownloader_Windows_1.8.zip)**
+
+Descomprime el ZIP y ejecuta `INSTALAR_EN_WINDOWS.bat`. Windows puede mostrar una advertencia porque esta primera edición aún no posee firma digital.
+
+## Funciones principales
+
+- Video MP4 hasta 8K o máxima resolución disponible.
+- Audio MP3.
+- Varias descargas simultáneas.
+- Pausa, continuación y recuperación después de reiniciar.
+- Monitor con formato real, tamaño, progreso, velocidad y tiempo restante.
+- Orden ascendente y descendente al pulsar cada columna.
+- Vista completa y compacta.
+- Grabación de pantalla y áreas seleccionadas.
+- Complemento experimental para Firefox.
+
+## Uso responsable
+
+Utiliza la aplicación únicamente con contenido propio, de dominio público o cuya descarga esté autorizada. Zeo Video Downloader no elude DRM, pagos ni controles de acceso. La compatibilidad depende de los extractores públicos de [yt-dlp](https://github.com/yt-dlp/yt-dlp) y puede cambiar cuando los sitios modifican sus reproductores.
+
+## Componentes
+
+El instalador obtiene Python, yt-dlp, FFmpeg y Deno desde sus paquetes oficiales mediante Windows Package Manager. Los componentes externos conservan sus respectivas licencias.
+
+## Privacidad
+
+La aplicación funciona localmente. No envía contraseñas, historial ni archivos a DUPUY+SOLUTIONS. Consulta [PRIVACY.md](PRIVACY.md).
+
+## Licencia
+
+Código de la interfaz distribuido bajo licencia MIT. Consulta [LICENSE](LICENSE) y [DISCLAIMER.md](DISCLAIMER.md).
+
+---
+
+**DUPUY+SOLUTIONS**

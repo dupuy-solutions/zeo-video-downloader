@@ -1,0 +1,91 @@
+ZEO VIDEO DOWNLOADER PARA WINDOWS
+=================================
+
+VERSIÓN 1.8
+- La columna Calidad ahora se llama Formato y muestra la resolución real del
+  archivo seleccionado, por ejemplo 1920×860, en vez de "Máxima disponible".
+- Todos los encabezados del monitor permiten ordenar con un clic; un segundo
+  clic invierte el orden. Tamaño, velocidad, progreso y tiempo se ordenan por
+  sus valores numéricos reales.
+
+VERSIÓN 1.7
+- Columnas Calidad y Tamaño agregadas al monitor de descargas.
+- Botón Iniciar ubicado junto al botón Pegar para un flujo más rápido.
+- Identidad DUPUY+SOLUTIONS incorporada discretamente al pie de la aplicación.
+
+VERSIÓN 1.6
+- Monitor con múltiples descargas, porcentaje, velocidad y tiempo restante.
+- Pausa y continuación usando los archivos parciales conservados por yt-dlp.
+- La cola se guarda automáticamente y se recupera después de cerrar la app,
+  reiniciar Windows o perder la conexión a Internet.
+- Hasta 6 descargas simultáneas y entre 1 y 16 fragmentos paralelos por descarga;
+  configuración recomendada: 3 descargas y 8 fragmentos.
+- Aceleración segura mediante el descargador nativo de yt-dlp y fragmentos
+  paralelos. No se incluye aria2c debido a cambios de seguridad publicados en 2026.
+- Vista completa maximizable y vista compacta con controles esenciales.
+- El botón ZEO de Firefox agrega nuevos enlaces directamente a la cola.
+
+VERSIÓN 1.5
+- Complemento de Firefox incluido en la carpeta COMPLEMENTO_FIREFOX_ZEO.
+- El botón ZEO de Firefox envía la pestaña actual a la aplicación e inicia la
+  descarga usando el formato, calidad y carpeta seleccionados en Zeo Downloader.
+- La aplicación debe estar abierta para recibir el enlace.
+- Firefox exige firma de Mozilla para conservar complementos después de reiniciar.
+  Para probarlo inmediatamente, sigue las instrucciones incluidas en la carpeta.
+
+VERSIÓN 1.4
+- Cuenta regresiva de 3 segundos.
+- Perfiles de calidad: Liviana, Equilibrada, Alta y Máxima.
+- Detención automática a los 30, 60, 90 o 120 minutos.
+- Campos Cliente, Proyecto y Tema para organizar nombres y carpetas.
+- Cronómetro visible y atajos F8 (captura), F9 (iniciar) y F10 (detener).
+- Capturas PNG durante la grabación.
+- Marcas temporales con notas exportadas a un archivo de texto.
+- Grabación intermedia recuperable en MKV para reducir pérdidas por cierre o
+  apagado; al detener se genera automáticamente el MP4 final.
+
+VERSIÓN 1.3
+- Nuevo módulo "Grabar pantalla" para videollamadas autorizadas.
+- Selector visual de área similar a Camtasia: arrastra un rectángulo sobre la
+  parte de la pantalla que deseas grabar o selecciona pantalla completa.
+- Grabación MP4 a 30 o 60 FPS, cursor visible y fecha automática en el nombre.
+- Permite elegir audio del computador (Mezcla estéreo, si Windows lo ofrece),
+  micrófono o ambos mezclados.
+- Antes de grabar, avisa a todos los participantes y obtén su autorización.
+
+VERSIÓN 1.2
+- Reintentos automáticos para conexiones, fragmentos y transmisiones HLS públicas.
+- Mensajes específicos para error 403, DRM, contenido privado, restricción
+  territorial, transmisión desconectada y enlace no compatible.
+- Mantiene automáticamente todos los extractores públicos incluidos en yt-dlp;
+  el botón "Actualizar motor" incorpora las mejoras publicadas por ese proyecto.
+
+VERSIÓN 1.1
+- Compatibilidad especial con páginas públicas de xfree.com mediante
+  impersonación de navegador compatible con yt-dlp.
+
+INSTALACIÓN
+1. Descomprime la carpeta completa.
+2. Haz doble clic en INSTALAR_EN_WINDOWS.bat.
+3. Acepta los avisos de Windows si aparecen.
+4. Abre "Zeo Video Downloader" desde el acceso directo del escritorio.
+
+USO
+1. Copia el enlace de un video o página compatible.
+2. Pulsa Pegar.
+3. Elige Video MP4 o Audio MP3, calidad y carpeta. En video puedes seleccionar
+   máxima disponible, 8K, 4K, 2K, 1080p, 720p o 480p.
+4. Pulsa Descargar.
+
+NOTAS
+- La lista completa se descarga solo si marcas esa alternativa.
+- Si un sitio cambia y deja de funcionar, pulsa "Actualizar motor".
+- Algunos servicios, transmisiones privadas, alquileres o contenido con DRM no son compatibles.
+- Úsalo únicamente con contenido propio, de dominio público o cuya descarga tengas autorizada.
+- La compatibilidad depende de yt-dlp y de las condiciones de cada sitio.
+
+COMPONENTES
+El instalador utiliza winget para instalar Python, yt-dlp, FFmpeg y Deno desde sus paquetes publicados para Windows.
+
+LICENCIA DEL PROYECTO
+MIT. Los componentes externos conservan sus respectivas licencias.

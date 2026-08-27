@@ -1,0 +1,20 @@
+COMPLEMENTO ZEO PARA FIREFOX
+============================
+
+PRUEBA INMEDIATA (instalación temporal)
+1. Abre Zeo Video Downloader 1.5 y déjalo abierto.
+2. En Firefox escribe en la barra: about:debugging#/runtime/this-firefox
+3. Pulsa "Cargar complemento temporal...".
+4. Selecciona ZEO_Firefox.xpi. Si Firefox no lo muestra, selecciona manifest.json
+   en esta misma carpeta.
+5. Fija el icono azul ZEO en la barra si Firefox lo dejó dentro del menú de
+   extensiones.
+6. Abre una página con un video público propio o autorizado y pulsa ZEO.
+
+IMPORTANTE
+- La instalación temporal desaparece al cerrar y volver a abrir Firefox.
+- ZEO_Firefox.xpi está listo, pero aún no está firmado. Para instalarlo
+  permanentemente en Firefox normal, Mozilla debe firmarlo en su portal AMO.
+- El complemento solo envía la dirección de la pestaña a la app local. No lee
+  contraseñas, cookies ni historial, y no evita DRM, pagos o accesos privados.
+- La compatibilidad final depende de los sitios admitidos por yt-dlp.
