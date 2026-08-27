@@ -2,7 +2,7 @@ COMPLEMENTO ZEO PARA FIREFOX
 ============================
 
 PRUEBA INMEDIATA (instalación temporal)
-1. Abre Zeo Video Downloader 1.5 y déjalo abierto.
+1. Abre Zeo Video Downloader 1.9 y déjalo abierto.
 2. En Firefox escribe en la barra: about:debugging#/runtime/this-firefox
 3. Pulsa "Cargar complemento temporal...".
 4. Selecciona ZEO_Firefox.xpi. Si Firefox no lo muestra, selecciona manifest.json

@@ -34,7 +34,7 @@ browser.browserAction.onClicked.addListener(async (tab) => {
   } catch (_error) {
     browser.browserAction.setBadgeText({text: "!", tabId: tab.id});
     browser.browserAction.setBadgeBackgroundColor({color: "#dc2626"});
-    await notify("ZEO no está conectado", "Abre Zeo Video Downloader 1.5 y vuelve a pulsar el botón.");
+    await notify("ZEO no está conectado", "Abre Zeo Video Downloader 1.9 y vuelve a pulsar el botón.");
   }
   setTimeout(() => browser.browserAction.setBadgeText({text: "", tabId: tab.id}), 3500);
 });
