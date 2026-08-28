@@ -4,7 +4,9 @@ Gestor de descargas y grabación de pantalla para Windows desarrollado por **DUP
 
 ## Descargar
 
-**[Descargar Zeo Video Downloader 1.9](https://github.com/dupuy-solutions/zeo-video-downloader/raw/refs/heads/main/downloads/ZeoVideoDownloader_Windows_1.9.zip)**
+**[Descargar Zeo Video Downloader 1.9](https://github.com/dupuy-solutions/zeo-video-downloader/releases/download/v1.9/ZeoVideoDownloader_Windows_1.9.zip)**
+
+También puedes consultar la [página del lanzamiento](https://github.com/dupuy-solutions/zeo-video-downloader/releases/tag/v1.9) y verificar el archivo mediante su checksum SHA-256.
 
 Descomprime el ZIP y ejecuta `INSTALAR_EN_WINDOWS.bat`. Windows puede mostrar una advertencia porque esta primera edición aún no posee firma digital.
 
@@ -26,7 +28,7 @@ Descomprime el ZIP y ejecuta `INSTALAR_EN_WINDOWS.bat`. Windows puede mostrar un
 
 ## Apoyar el proyecto
 
-Zeo es gratuito y todas sus funciones están disponibles sin aportar. Si deseas colaborar con el mantenimiento, puedes hacerlo mediante [Mercado Pago](https://link.mercadopago.cl/zeovideodownloader).
+Zeo es gratuito y todas sus funciones están disponibles sin aportar. Si deseas colaborar con el mantenimiento, puedes hacerlo mediante [PayPal](https://paypal.me/zeovideodownloader) o [Mercado Pago](https://link.mercadopago.cl/zeovideodownloader).
 
 ## Uso responsable
 
