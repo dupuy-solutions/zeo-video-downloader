@@ -5,3 +5,5 @@ Zeo Video Downloader procesa localmente en el equipo los enlaces proporcionados 
 El complemento de Firefox envía únicamente la dirección de la pestaña activa a la aplicación local mediante `127.0.0.1`. Los motores externos utilizados por la aplicación realizan las conexiones necesarias con el sitio de origen para procesar el enlace solicitado.
 
 La aplicación no incorpora telemetría propia ni venta de datos personales.
+
+El botón opcional de apoyo abre el sitio externo de Mercado Pago en el navegador. Zeo no recibe ni almacena datos bancarios o de pago.

@@ -8,17 +8,21 @@ import sys
 import threading
 import tkinter as tk
 import uuid
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from urllib.parse import urlparse
 
+from i18n import LANGUAGES, Translator, detect_language
+
 
 APP_NAME = "Zeo Video Downloader"
-APP_VERSION = "1.8"
+APP_VERSION = "1.9"
 EXTENSION_HOST = "127.0.0.1"
 EXTENSION_PORT = 17835
+SUPPORT_URL = "https://link.mercadopago.cl/zeovideodownloader"
 
 
 def default_download_folder() -> str:
@@ -35,25 +39,36 @@ def startupinfo():
 
 
 class ScreenRecorder(tk.Toplevel):
-    def __init__(self, parent, folder):
+    def __init__(self, parent, folder, translator):
         super().__init__(parent)
-        self.title("Grabar videollamada")
+        self.translator = translator
+        self.tr = translator.tr
+        self.title(self.tr("rec.title"))
         self.geometry("700x820")
         self.minsize(650, 760)
         self.configure(bg="#111827")
         self.transient(parent)
         self.folder = tk.StringVar(value=folder)
         self.fps = tk.StringVar(value="30 FPS")
-        self.quality_preset = tk.StringVar(value="Equilibrada")
-        self.auto_stop = tk.StringVar(value="Sin límite")
+        self.quality_options = {
+            self.tr("rec.quality.light"): "light", self.tr("rec.quality.balanced"): "balanced",
+            self.tr("rec.quality.high"): "high", self.tr("rec.quality.maximum"): "maximum",
+        }
+        self.limit_options = {
+            self.tr("rec.limit.none"): None, self.tr("rec.limit.30"): 30, self.tr("rec.limit.60"): 60,
+            self.tr("rec.limit.90"): 90, self.tr("rec.limit.120"): 120,
+        }
+        self.no_audio = self.tr("rec.no_audio")
+        self.quality_preset = tk.StringVar(value=self.tr("rec.quality.balanced"))
+        self.auto_stop = tk.StringVar(value=self.tr("rec.limit.none"))
         self.client_name = tk.StringVar()
         self.project_name = tk.StringVar()
         self.topic_name = tk.StringVar()
-        self.system_audio = tk.StringVar(value="Sin audio")
-        self.microphone = tk.StringVar(value="Sin audio")
-        self.area_text = tk.StringVar(value="Pantalla completa")
+        self.system_audio = tk.StringVar(value=self.no_audio)
+        self.microphone = tk.StringVar(value=self.no_audio)
+        self.area_text = tk.StringVar(value=self.tr("rec.area_full"))
         self.capture_rect = None
-        self.status = tk.StringVar(value="Preparando dispositivos de audio…")
+        self.status = tk.StringVar(value=self.tr("rec.preparing"))
         self.process = None
         self.output_file = None
         self.recovery_file = None
@@ -71,22 +86,22 @@ class ScreenRecorder(tk.Toplevel):
     def _build(self):
         root = ttk.Frame(self, padding=24)
         root.pack(fill="both", expand=True)
-        ttk.Label(root, text="Grabar videollamada", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(root, text=self.tr("rec.title"), style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             root,
-            text="Avisa a todos los participantes antes de iniciar la grabación.",
+            text=self.tr("rec.consent"),
             style="Hint.TLabel",
         ).pack(anchor="w", pady=(2, 18))
 
-        ttk.Label(root, text="Carpeta de grabaciones").pack(anchor="w")
+        ttk.Label(root, text=self.tr("rec.folder")).pack(anchor="w")
         folder_row = ttk.Frame(root)
         folder_row.pack(fill="x", pady=(5, 15))
         ttk.Entry(folder_row, textvariable=self.folder).pack(side="left", fill="x", expand=True)
-        ttk.Button(folder_row, text="Elegir", command=self.choose_folder).pack(side="left", padx=(8, 0))
+        ttk.Button(folder_row, text=self.tr("choose"), command=self.choose_folder).pack(side="left", padx=(8, 0))
 
         identity = ttk.Frame(root)
         identity.pack(fill="x", pady=(0, 15))
-        for label, variable in (("Cliente", self.client_name), ("Proyecto", self.project_name), ("Tema", self.topic_name)):
+        for label, variable in ((self.tr("rec.client"), self.client_name), (self.tr("rec.project"), self.project_name), (self.tr("rec.topic"), self.topic_name)):
             column = ttk.Frame(identity)
             column.pack(side="left", fill="x", expand=True, padx=(0, 8))
             ttk.Label(column, text=label).pack(anchor="w")
@@ -96,29 +111,29 @@ class ScreenRecorder(tk.Toplevel):
         area_row.pack(fill="x", pady=(0, 15))
         area_left = ttk.Frame(area_row)
         area_left.pack(side="left", fill="x", expand=True)
-        ttk.Label(area_left, text="Área de grabación").pack(anchor="w")
+        ttk.Label(area_left, text=self.tr("rec.area")).pack(anchor="w")
         ttk.Label(area_left, textvariable=self.area_text, style="Hint.TLabel").pack(anchor="w", pady=(4, 0))
-        ttk.Button(area_row, text="Seleccionar área", command=self.select_area).pack(side="left", padx=(8, 0))
-        ttk.Button(area_row, text="Pantalla completa", command=self.full_screen).pack(side="left", padx=(8, 0))
+        ttk.Button(area_row, text=self.tr("rec.select_area"), command=self.select_area).pack(side="left", padx=(8, 0))
+        ttk.Button(area_row, text=self.tr("rec.fullscreen"), command=self.full_screen).pack(side="left", padx=(8, 0))
 
-        ttk.Label(root, text="Fluidez").pack(anchor="w")
+        ttk.Label(root, text=self.tr("rec.flow")).pack(anchor="w")
         capture_options = ttk.Frame(root)
         capture_options.pack(fill="x", pady=(5, 15))
         ttk.Combobox(capture_options, state="readonly", textvariable=self.fps, values=("30 FPS", "60 FPS"), width=14).pack(side="left")
-        ttk.Combobox(capture_options, state="readonly", textvariable=self.quality_preset, values=("Liviana", "Equilibrada", "Alta", "Máxima"), width=16).pack(side="left", padx=8)
-        ttk.Combobox(capture_options, state="readonly", textvariable=self.auto_stop, values=("Sin límite", "30 minutos", "60 minutos", "90 minutos", "120 minutos"), width=18).pack(side="left")
+        ttk.Combobox(capture_options, state="readonly", textvariable=self.quality_preset, values=tuple(self.quality_options), width=16).pack(side="left", padx=8)
+        ttk.Combobox(capture_options, state="readonly", textvariable=self.auto_stop, values=tuple(self.limit_options), width=18).pack(side="left")
 
-        ttk.Label(root, text="Audio del computador (elige Mezcla estéreo si aparece)").pack(anchor="w")
-        self.system_box = ttk.Combobox(root, state="readonly", textvariable=self.system_audio, values=("Sin audio",), width=66)
+        ttk.Label(root, text=self.tr("rec.system_audio")).pack(anchor="w")
+        self.system_box = ttk.Combobox(root, state="readonly", textvariable=self.system_audio, values=(self.no_audio,), width=66)
         self.system_box.pack(fill="x", pady=(5, 15))
 
-        ttk.Label(root, text="Micrófono").pack(anchor="w")
-        self.mic_box = ttk.Combobox(root, state="readonly", textvariable=self.microphone, values=("Sin audio",), width=66)
+        ttk.Label(root, text=self.tr("rec.microphone")).pack(anchor="w")
+        self.mic_box = ttk.Combobox(root, state="readonly", textvariable=self.microphone, values=(self.no_audio,), width=66)
         self.mic_box.pack(fill="x", pady=(5, 15))
 
         ttk.Label(
             root,
-            text="Se grabará toda la pantalla, incluido cualquier aviso o ventana visible.",
+            text=self.tr("rec.notice"),
             style="Hint.TLabel",
         ).pack(anchor="w")
         ttk.Label(root, textvariable=self.status).pack(anchor="w", pady=(12, 10))
@@ -127,15 +142,15 @@ class ScreenRecorder(tk.Toplevel):
 
         row = ttk.Frame(root)
         row.pack(fill="x")
-        self.start_btn = ttk.Button(row, text="Iniciar grabación", style="Accent.TButton", command=self.start)
+        self.start_btn = ttk.Button(row, text=self.tr("rec.start"), style="Accent.TButton", command=self.start)
         self.start_btn.pack(side="left")
-        self.stop_btn = ttk.Button(row, text="Detener y guardar", state="disabled", command=self.stop)
+        self.stop_btn = ttk.Button(row, text=self.tr("rec.stop"), state="disabled", command=self.stop)
         self.stop_btn.pack(side="left", padx=8)
-        self.shot_btn = ttk.Button(row, text="Captura (F8)", state="disabled", command=self.take_screenshot)
+        self.shot_btn = ttk.Button(row, text=self.tr("rec.shot"), state="disabled", command=self.take_screenshot)
         self.shot_btn.pack(side="left", padx=(0, 8))
-        self.marker_btn = ttk.Button(row, text="Marcar momento", state="disabled", command=self.add_marker)
+        self.marker_btn = ttk.Button(row, text=self.tr("rec.marker"), state="disabled", command=self.add_marker)
         self.marker_btn.pack(side="left")
-        ttk.Button(row, text="Abrir carpeta", command=self.open_folder).pack(side="right")
+        ttk.Button(row, text=self.tr("rec.open"), command=self.open_folder).pack(side="right")
 
     def _ffmpeg(self):
         local = Path(sys.executable).resolve().parent / "ffmpeg.exe"
@@ -144,7 +159,7 @@ class ScreenRecorder(tk.Toplevel):
     def _load_audio_devices(self):
         ffmpeg = self._ffmpeg()
         if not ffmpeg or os.name != "nt":
-            self.after(0, lambda: self.status.set("FFmpeg no está disponible. Ejecuta nuevamente el instalador."))
+            self.after(0, lambda: self.status.set(self.tr("rec.ffmpeg")))
             return
         result = subprocess.run(
             [ffmpeg, "-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
@@ -159,7 +174,7 @@ class ScreenRecorder(tk.Toplevel):
         self.after(0, lambda: self._set_devices(devices))
 
     def _set_devices(self, devices):
-        values = ("Sin audio", *devices)
+        values = (self.no_audio, *devices)
         self.system_box.configure(values=values)
         self.mic_box.configure(values=values)
         stereo = next((d for d in devices if "stereo mix" in d.lower() or "mezcla estéreo" in d.lower()), None)
@@ -168,7 +183,7 @@ class ScreenRecorder(tk.Toplevel):
             self.system_audio.set(stereo)
         if mic and mic != stereo:
             self.microphone.set(mic)
-        self.status.set(f"{len(devices)} dispositivo(s) de audio detectado(s).")
+        self.status.set(self.tr("rec.devices", count=len(devices)))
 
     def choose_folder(self):
         selected = filedialog.askdirectory(initialdir=self.folder.get(), parent=self)
@@ -177,12 +192,12 @@ class ScreenRecorder(tk.Toplevel):
 
     def select_area(self):
         self.withdraw()
-        self.after(150, lambda: RegionSelector(self.master, self._area_selected, self._area_cancelled))
+        self.after(150, lambda: RegionSelector(self.master, self._area_selected, self._area_cancelled, self.translator))
 
     def _area_selected(self, rect):
         self.capture_rect = rect
         x, y, width, height = rect
-        self.area_text.set(f"Área personalizada: {width} × {height} px, posición {x}, {y}")
+        self.area_text.set(self.tr("rec.area_custom", width=width, height=height, x=x, y=y))
         self.deiconify()
         self.lift()
 
@@ -192,7 +207,7 @@ class ScreenRecorder(tk.Toplevel):
 
     def full_screen(self):
         self.capture_rect = None
-        self.area_text.set("Pantalla completa")
+        self.area_text.set(self.tr("rec.area_full"))
 
     def open_folder(self):
         folder = Path(self.folder.get()).expanduser()
@@ -203,21 +218,21 @@ class ScreenRecorder(tk.Toplevel):
     def start(self):
         ffmpeg = self._ffmpeg()
         if not ffmpeg:
-            messagebox.showerror(APP_NAME, "No se encontró FFmpeg. Ejecuta INSTALAR_EN_WINDOWS.bat.", parent=self)
+            messagebox.showerror(APP_NAME, self.tr("rec.ffmpeg_not_found"), parent=self)
             return
         if not messagebox.askyesno(
             APP_NAME,
-            "¿Confirmas que avisaste a los participantes y tienes autorización para grabar?",
+            self.tr("rec.confirm"),
             parent=self,
         ):
             return
         self.start_btn.configure(state="disabled")
-        self.status.set("La grabación comenzará en 3 segundos…")
+        self.status.set(self.tr("rec.starts"))
         self._countdown(3)
 
     def _countdown(self, seconds):
         if seconds > 0:
-            self.status.set(f"Comenzando en {seconds}…")
+            self.status.set(self.tr("rec.countdown", seconds=seconds))
             self.after(1000, lambda: self._countdown(seconds - 1))
             return
         self._begin_recording()
@@ -245,7 +260,7 @@ class ScreenRecorder(tk.Toplevel):
         cmd += ["-i", "desktop"]
         selected = []
         for device in (self.system_audio.get(), self.microphone.get()):
-            if device != "Sin audio" and device not in selected:
+            if device != self.no_audio and device not in selected:
                 selected.append(device)
                 cmd += ["-thread_queue_size", "1024", "-f", "dshow", "-i", f"audio={device}"]
         if len(selected) == 2:
@@ -255,12 +270,10 @@ class ScreenRecorder(tk.Toplevel):
         else:
             cmd += ["-map", "0:v"]
         quality = {
-            "Liviana": ("ultrafast", "29"),
-            "Equilibrada": ("veryfast", "23"),
-            "Alta": ("fast", "19"),
-            "Máxima": ("medium", "16"),
+            "light": ("ultrafast", "29"), "balanced": ("veryfast", "23"),
+            "high": ("fast", "19"), "maximum": ("medium", "16"),
         }
-        preset, crf = quality[self.quality_preset.get()]
+        preset, crf = quality[self.quality_options[self.quality_preset.get()]]
         cmd += ["-c:v", "libx264", "-preset", preset, "-crf", crf, "-pix_fmt", "yuv420p"]
         if selected:
             cmd += ["-c:a", "aac", "-b:a", "160k"]
@@ -281,10 +294,10 @@ class ScreenRecorder(tk.Toplevel):
         self.marker_btn.configure(state="normal")
         self.started_at = datetime.now()
         self._update_timer()
-        minutes = {"30 minutos": 30, "60 minutos": 60, "90 minutos": 90, "120 minutos": 120}.get(self.auto_stop.get())
+        minutes = self.limit_options.get(self.auto_stop.get())
         if minutes:
             self.auto_stop_job = self.after(minutes * 60 * 1000, self.stop)
-        self.status.set("Grabando… vuelve aquí y pulsa Detener y guardar.")
+        self.status.set(self.tr("rec.recording"))
         threading.Thread(target=self._watch_process, daemon=True).start()
 
     def _watch_process(self):
@@ -294,7 +307,7 @@ class ScreenRecorder(tk.Toplevel):
 
     def stop(self):
         if self.process and self.process.poll() is None:
-            self.status.set("Finalizando el archivo MP4…")
+            self.status.set(self.tr("rec.finalizing"))
             try:
                 self.process.stdin.write("q\n")
                 self.process.stdin.flush()
@@ -316,9 +329,9 @@ class ScreenRecorder(tk.Toplevel):
     def add_marker(self):
         if not self.process:
             return
-        note = simpledialog.askstring(APP_NAME, "Escribe una nota para este momento:", parent=self) or "Marca"
+        note = simpledialog.askstring(APP_NAME, self.tr("rec.marker_prompt"), parent=self) or self.tr("rec.marker_default")
         self.markers.append((self._clock(self._elapsed_seconds()), note.strip()))
-        self.status.set(f"Marca agregada: {self.markers[-1][0]} – {self.markers[-1][1]}")
+        self.status.set(self.tr("rec.marker_added", time=self.markers[-1][0], note=self.markers[-1][1]))
 
     def take_screenshot(self):
         if not self.process or not self.output_file:
@@ -331,7 +344,7 @@ class ScreenRecorder(tk.Toplevel):
             cmd += ["-offset_x", str(x), "-offset_y", str(y), "-video_size", f"{width}x{height}"]
         cmd += ["-i", "desktop", "-frames:v", "1", str(shot)]
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, startupinfo=startupinfo(), creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-        self.status.set(f"Captura guardada: {shot.name}")
+        self.status.set(self.tr("rec.shot_saved", name=shot.name))
 
     def _finished(self, code, error_text):
         self.process = None
@@ -346,13 +359,13 @@ class ScreenRecorder(tk.Toplevel):
         self.shot_btn.configure(state="disabled")
         self.marker_btn.configure(state="disabled")
         if code == 0 and self.recovery_file and self.recovery_file.exists():
-            self.status.set("Finalizando MP4…")
+            self.status.set(self.tr("rec.finalizing"))
             threading.Thread(target=self._finalize_mp4, daemon=True).start()
         else:
-            self.status.set("No se pudo completar la grabación.")
-            hint = "Revisa que el dispositivo de audio elegido siga conectado."
+            self.status.set(self.tr("rec.failed"))
+            hint = self.tr("rec.audio_hint")
             if "Could not find audio only device" in error_text:
-                hint = "Windows no encontró el dispositivo de audio seleccionado. Actualiza la lista abriendo nuevamente esta ventana."
+                hint = self.tr("rec.audio_missing")
             messagebox.showerror(APP_NAME, hint, parent=self)
 
     def _finalize_mp4(self):
@@ -372,23 +385,24 @@ class ScreenRecorder(tk.Toplevel):
                 notes.write_text("\n".join(f"{time} – {note}" for time, note in self.markers), encoding="utf-8")
             self.after(0, lambda: self._finalized_ok())
         else:
-            self.after(0, lambda: messagebox.showwarning(APP_NAME, f"El MP4 no pudo finalizarse, pero conservamos el archivo recuperable:\n{self.recovery_file}", parent=self))
+            self.after(0, lambda: messagebox.showwarning(APP_NAME, self.tr("rec.warning", file=self.recovery_file), parent=self))
 
     def _finalized_ok(self):
-        self.status.set(f"Grabación guardada: {self.output_file.name}")
-        messagebox.showinfo(APP_NAME, f"Grabación guardada en:\n{self.output_file}", parent=self)
+        self.status.set(self.tr("rec.saved_status", name=self.output_file.name))
+        messagebox.showinfo(APP_NAME, self.tr("rec.saved", file=self.output_file), parent=self)
 
     def close_window(self):
         if self.process and self.process.poll() is None:
-            if not messagebox.askyesno(APP_NAME, "La grabación sigue activa. ¿Deseas detenerla y cerrar?", parent=self):
+            if not messagebox.askyesno(APP_NAME, self.tr("rec.close_active"), parent=self):
                 return
             self.stop()
         self.destroy()
 
 
 class RegionSelector(tk.Toplevel):
-    def __init__(self, parent, on_select, on_cancel):
+    def __init__(self, parent, on_select, on_cancel, translator):
         super().__init__(parent)
+        self.translator = translator
         self.on_select = on_select
         self.on_cancel = on_cancel
         self.start_x = None
@@ -407,7 +421,7 @@ class RegionSelector(tk.Toplevel):
         self.canvas.pack(fill="both", expand=True)
         self.canvas.create_text(
             width // 2, 35,
-            text="ARRASTRA PARA SELECCIONAR EL ÁREA · ESC PARA CANCELAR",
+            text=translator.tr("rec.region"),
             fill="white", font=("Segoe UI Semibold", 14),
         )
         self.canvas.bind("<ButtonPress-1>", self._start)
@@ -436,7 +450,7 @@ class RegionSelector(tk.Toplevel):
         width = (x2 - x1) // 2 * 2
         height = (y2 - y1) // 2 * 2
         if width < 160 or height < 120:
-            messagebox.showwarning(APP_NAME, "Selecciona un área de al menos 160 × 120 píxeles.", parent=self)
+            messagebox.showwarning(APP_NAME, self.translator.tr("rec.area_too_small"), parent=self)
             return
         self.destroy()
         self.on_select((x1, y1, width, height))
@@ -462,23 +476,49 @@ class DownloaderApp(tk.Tk):
         self.compact = False
         self.sort_reverse = {}
         self.active_sort = None
-        self.url = tk.StringVar()
-        self.folder = tk.StringVar(value=default_download_folder())
-        self.kind = tk.StringVar(value="Video MP4")
-        self.quality = tk.StringVar(value="Máxima disponible")
-        self.playlist = tk.BooleanVar(value=False)
-        self.parallel_downloads = tk.IntVar(value=3)
-        self.fragments = tk.IntVar(value=8)
-        self.status = tk.StringVar(value="Listo para descargar")
-        self.progress = tk.DoubleVar(value=0)
         base = Path(os.getenv("LOCALAPPDATA") or (Path.home() / ".zeo_downloader"))
         self.state_dir = base / "ZeoVideoDownloader"
         self.state_file = self.state_dir / "descargas.json"
+        saved_language = self._saved_language()
+        self.translator = Translator(saved_language)
+        self.tr = self.translator.tr
+        self.language_code = tk.StringVar(value=saved_language)
+        self.language_display = tk.StringVar(value=LANGUAGES[saved_language])
+        self.url = tk.StringVar()
+        self.folder = tk.StringVar(value=default_download_folder())
+        self.kind = tk.StringVar(value="video")
+        self.kind_display = tk.StringVar(value=self.tr("format.video"))
+        self.quality = tk.StringVar(value="best")
+        self.quality_display = tk.StringVar(value=self.tr("quality.best"))
+        self.playlist = tk.BooleanVar(value=False)
+        self.parallel_downloads = tk.IntVar(value=3)
+        self.fragments = tk.IntVar(value=8)
+        self.status = tk.StringVar(value=self.tr("status.ready"))
+        self.progress = tk.DoubleVar(value=0)
+        self.logo_image = None
+        logo_path = Path(__file__).resolve().parent / "assets" / "zeo_logo.png"
+        if logo_path.exists():
+            try:
+                self.logo_image = tk.PhotoImage(file=str(logo_path))
+                self.iconphoto(True, self.logo_image)
+            except tk.TclError:
+                self.logo_image = None
         self._build_ui()
         self._load_state()
         self._start_extension_bridge()
         self.protocol("WM_DELETE_WINDOW", self._close_app)
         self.after(100, self._drain_events)
+
+    def _saved_language(self):
+        if self.state_file.exists():
+            try:
+                data = json.loads(self.state_file.read_text(encoding="utf-8"))
+                code = data.get("language")
+                if code in LANGUAGES:
+                    return code
+            except (OSError, ValueError, TypeError):
+                pass
+        return detect_language()
 
     def _start_extension_bridge(self):
         app = self
@@ -542,73 +582,81 @@ class DownloaderApp(tk.Tk):
         title_row = ttk.Frame(root)
         title_row.pack(fill="x")
         ttk.Label(title_row, text="Zeo Video Downloader", style="Title.TLabel").pack(side="left")
-        ttk.Button(title_row, text="Vista compacta", command=self.toggle_compact).pack(side="right")
-        ttk.Button(title_row, text="Maximizar", command=self.toggle_maximize).pack(side="right", padx=8)
-        self.subtitle = ttk.Label(root, text="Gestor persistente de descargas múltiples · contenido propio o autorizado.", style="Hint.TLabel")
+        self.compact_btn = ttk.Button(title_row, text=self.tr("view.compact"), command=self.toggle_compact)
+        self.compact_btn.pack(side="right")
+        self.maximize_btn = ttk.Button(title_row, text=self.tr("maximize"), command=self.toggle_maximize)
+        self.maximize_btn.pack(side="right", padx=8)
+        language_box = ttk.Combobox(title_row, state="readonly", textvariable=self.language_display, values=tuple(LANGUAGES.values()), width=14)
+        language_box.pack(side="right", padx=(8, 0))
+        language_box.bind("<<ComboboxSelected>>", self.change_language)
+        ttk.Label(title_row, text=self.tr("language")).pack(side="right", padx=(12, 0))
+        self.subtitle = ttk.Label(root, text=self.tr("subtitle"), style="Hint.TLabel")
         self.subtitle.pack(anchor="w", pady=(2, 16))
 
         self.input_frame = ttk.Frame(root)
         self.input_frame.pack(fill="x")
-        ttk.Label(self.input_frame, text="Enlace del video o página").pack(anchor="w")
+        ttk.Label(self.input_frame, text=self.tr("url.label")).pack(anchor="w")
         url_row = ttk.Frame(self.input_frame)
         url_row.pack(fill="x", pady=(6, 12))
         self.url_entry = ttk.Entry(url_row, textvariable=self.url, font=("Segoe UI", 11))
         self.url_entry.pack(side="left", fill="x", expand=True)
-        ttk.Button(url_row, text="Pegar", command=self.paste_url).pack(side="left", padx=(8, 0))
-        self.download_btn = ttk.Button(url_row, text="Iniciar", style="Accent.TButton", command=self.add_download)
+        ttk.Button(url_row, text=self.tr("paste"), command=self.paste_url).pack(side="left", padx=(8, 0))
+        self.download_btn = ttk.Button(url_row, text=self.tr("start"), style="Accent.TButton", command=self.add_download)
         self.download_btn.pack(side="left", padx=(8, 0))
 
         options = ttk.Frame(self.input_frame)
         options.pack(fill="x", pady=(0, 12))
         left = ttk.Frame(options)
         left.pack(side="left", fill="x", expand=True)
-        ttk.Label(left, text="Formato").pack(anchor="w")
-        self.kind_box = ttk.Combobox(left, state="readonly", textvariable=self.kind, values=("Video MP4", "Audio MP3"), width=20)
+        ttk.Label(left, text=self.tr("format")).pack(anchor="w")
+        self.kind_box = ttk.Combobox(left, state="readonly", textvariable=self.kind_display, values=(self.tr("format.video"), self.tr("format.audio")), width=20)
         self.kind_box.pack(anchor="w", pady=(5, 0))
-        self.kind_box.bind("<<ComboboxSelected>>", self._toggle_quality)
+        self.kind_box.bind("<<ComboboxSelected>>", self._kind_changed)
         middle = ttk.Frame(options)
         middle.pack(side="left", fill="x", expand=True, padx=20)
-        ttk.Label(middle, text="Resolución máxima solicitada").pack(anchor="w")
+        ttk.Label(middle, text=self.tr("resolution")).pack(anchor="w")
         self.quality_box = ttk.Combobox(
             middle,
             state="readonly",
-            textvariable=self.quality,
-            values=("Máxima disponible", "4320p (8K)", "2160p (4K)", "1440p (2K)", "1080p", "720p", "480p"),
+            textvariable=self.quality_display,
+            values=(self.tr("quality.best"), "4320p (8K)", "2160p (4K)", "1440p (2K)", "1080p", "720p", "480p"),
             width=20,
         )
         self.quality_box.pack(anchor="w", pady=(5, 0))
+        self.quality_box.bind("<<ComboboxSelected>>", self._quality_changed)
         right = ttk.Frame(options)
         right.pack(side="left", fill="x", expand=True)
-        ttk.Label(right, text="Lista de reproducción").pack(anchor="w")
-        ttk.Checkbutton(right, text="Descargar lista completa", variable=self.playlist).pack(anchor="w", pady=(6, 0))
+        ttk.Label(right, text=self.tr("playlist")).pack(anchor="w")
+        ttk.Checkbutton(right, text=self.tr("playlist.all"), variable=self.playlist).pack(anchor="w", pady=(6, 0))
 
-        ttk.Label(self.input_frame, text="Carpeta de destino").pack(anchor="w")
+        ttk.Label(self.input_frame, text=self.tr("destination")).pack(anchor="w")
         folder_row = ttk.Frame(self.input_frame)
         folder_row.pack(fill="x", pady=(6, 12))
         ttk.Entry(folder_row, textvariable=self.folder).pack(side="left", fill="x", expand=True)
-        ttk.Button(folder_row, text="Elegir", command=self.choose_folder).pack(side="left", padx=(8, 0))
-        ttk.Button(folder_row, text="Abrir", command=self.open_folder).pack(side="left", padx=(8, 0))
+        ttk.Button(folder_row, text=self.tr("choose"), command=self.choose_folder).pack(side="left", padx=(8, 0))
+        ttk.Button(folder_row, text=self.tr("open"), command=self.open_folder).pack(side="left", padx=(8, 0))
 
         buttons = ttk.Frame(self.input_frame)
         buttons.pack(fill="x", pady=(0, 12))
-        ttk.Button(buttons, text="Pausar", command=self.pause_selected).pack(side="left")
-        ttk.Button(buttons, text="Continuar", command=self.resume_selected).pack(side="left")
-        ttk.Button(buttons, text="Grabar pantalla", command=self.open_recorder).pack(side="left", padx=(4, 0))
-        ttk.Button(buttons, text="Actualizar motor", command=self.update_engine).pack(side="right")
+        ttk.Button(buttons, text=self.tr("pause"), command=self.pause_selected).pack(side="left")
+        ttk.Button(buttons, text=self.tr("resume"), command=self.resume_selected).pack(side="left")
+        ttk.Button(buttons, text=self.tr("record"), command=self.open_recorder).pack(side="left", padx=(4, 0))
+        ttk.Button(buttons, text=self.tr("update"), command=self.update_engine).pack(side="right")
+        ttk.Button(buttons, text=self.tr("support"), command=lambda: webbrowser.open(SUPPORT_URL)).pack(side="right", padx=(0, 6))
 
         self.manager_frame = ttk.Frame(root)
         self.manager_frame.pack(fill="both", expand=True)
         manager_bar = ttk.Frame(self.manager_frame)
         manager_bar.pack(fill="x", pady=(0, 7))
-        ttk.Label(manager_bar, text="Monitor de descargas", style="Title.TLabel").pack(side="left")
-        ttk.Label(manager_bar, text="Descargas simultáneas:").pack(side="left", padx=(24, 5))
+        ttk.Label(manager_bar, text=self.tr("monitor"), style="Title.TLabel").pack(side="left")
+        ttk.Label(manager_bar, text=self.tr("parallel")).pack(side="left", padx=(24, 5))
         ttk.Spinbox(manager_bar, from_=1, to=6, width=4, textvariable=self.parallel_downloads, command=self._settings_changed).pack(side="left")
-        ttk.Label(manager_bar, text="Fragmentos por descarga:").pack(side="left", padx=(16, 5))
+        ttk.Label(manager_bar, text=self.tr("fragments")).pack(side="left", padx=(16, 5))
         ttk.Spinbox(manager_bar, from_=1, to=16, width=4, textvariable=self.fragments, command=self._settings_changed).pack(side="left")
 
         columns = ("titulo", "calidad", "tamano", "estado", "progreso", "velocidad", "restante")
         self.tree = ttk.Treeview(self.manager_frame, columns=columns, show="headings", selectmode="extended", height=10)
-        labels = {"titulo": "Video / enlace", "calidad": "Formato", "tamano": "Tamaño", "estado": "Estado", "progreso": "Progreso", "velocidad": "Velocidad", "restante": "Restante"}
+        labels = {"titulo": self.tr("col.video"), "calidad": self.tr("col.format"), "tamano": self.tr("col.size"), "estado": self.tr("col.status"), "progreso": self.tr("col.progress"), "velocidad": self.tr("col.speed"), "restante": self.tr("col.remaining")}
         self.column_labels = labels
         widths = {"titulo": 390, "calidad": 105, "tamano": 100, "estado": 110, "progreso": 85, "velocidad": 100, "restante": 80}
         for name in columns:
@@ -618,13 +666,13 @@ class DownloaderApp(tk.Tk):
 
         queue_buttons = ttk.Frame(self.manager_frame)
         queue_buttons.pack(fill="x", pady=(8, 8))
-        ttk.Button(queue_buttons, text="Pausar seleccionadas", command=self.pause_selected).pack(side="left")
-        ttk.Button(queue_buttons, text="Continuar seleccionadas", command=self.resume_selected).pack(side="left", padx=6)
-        ttk.Button(queue_buttons, text="Cancelar", command=self.cancel_selected).pack(side="left")
-        ttk.Button(queue_buttons, text="Eliminar terminadas", command=self.clear_completed).pack(side="left", padx=6)
-        ttk.Button(queue_buttons, text="Abrir carpeta", command=self.open_folder).pack(side="right")
+        ttk.Button(queue_buttons, text=self.tr("pause.selected"), command=self.pause_selected).pack(side="left")
+        ttk.Button(queue_buttons, text=self.tr("resume.selected"), command=self.resume_selected).pack(side="left", padx=6)
+        ttk.Button(queue_buttons, text=self.tr("cancel"), command=self.cancel_selected).pack(side="left")
+        ttk.Button(queue_buttons, text=self.tr("clear.completed"), command=self.clear_completed).pack(side="left", padx=6)
+        ttk.Button(queue_buttons, text=self.tr("open"), command=self.open_folder).pack(side="right")
 
-        ttk.Label(self.manager_frame, text="Actividad técnica", style="Hint.TLabel").pack(anchor="w")
+        ttk.Label(self.manager_frame, text=self.tr("activity"), style="Hint.TLabel").pack(anchor="w")
         self.log = tk.Text(self.manager_frame, height=4, bg="#0b1220", fg="#cbd5e1", insertbackground="white", relief="flat", font=("Consolas", 9), wrap="word")
         self.log.pack(fill="x", pady=(3, 0))
         self.log.configure(state="disabled")
@@ -641,25 +689,66 @@ class DownloaderApp(tk.Tk):
             self.manager_frame.pack_forget()
             self.subtitle.pack_forget()
             self.geometry("760x430")
+            self.compact_btn.configure(text=self.tr("view.full"))
         else:
             self.manager_frame.pack(fill="both", expand=True, before=self.progress_bar)
             self.subtitle.pack(anchor="w", pady=(2, 16), before=self.input_frame)
             self.geometry("1120x720")
+            self.compact_btn.configure(text=self.tr("view.compact"))
 
     def toggle_maximize(self):
         try:
             self.state("normal" if self.state() == "zoomed" else "zoomed")
         except tk.TclError:
             self.attributes("-zoomed", not self.attributes("-zoomed"))
+        self.after(50, lambda: self.maximize_btn.configure(text=self.tr("restore") if self.state() == "zoomed" else self.tr("maximize")))
+
+    def change_language(self, _event=None):
+        selected = next((code for code, label in LANGUAGES.items() if label == self.language_display.get()), "es")
+        if selected == self.language_code.get():
+            return
+        self.language_code.set(selected)
+        self.translator.set_language(selected)
+        self.tr = self.translator.tr
+        self.kind_display.set(self.tr("format.audio") if self.kind.get() == "audio" else self.tr("format.video"))
+        self.quality_display.set(self.tr("quality.best") if self.quality.get() == "best" else self._quality_label(self.quality.get()))
+        self.status.set(self.tr("status.ready"))
+        was_compact = self.compact
+        self.compact = False
+        self.root_frame.destroy()
+        self._build_ui()
+        for task in self.tasks.values():
+            self._upsert_task(task)
+        if was_compact:
+            self.toggle_compact()
+        self._save_state()
+
+    @staticmethod
+    def _quality_label(code):
+        labels = {"4320": "4320p (8K)", "2160": "2160p (4K)", "1440": "1440p (2K)", "1080": "1080p", "720": "720p", "480": "480p"}
+        return labels.get(str(code), "1080p")
+
+    def _kind_changed(self, _event=None):
+        self.kind.set("audio" if self.kind_display.get() == self.tr("format.audio") else "video")
+        self._toggle_quality()
+
+    def _quality_changed(self, _event=None):
+        displayed = self.quality_display.get()
+        if displayed == self.tr("quality.best"):
+            self.quality.set("best")
+            return
+        match = re.match(r"(\d+)p", displayed)
+        if match:
+            self.quality.set(match.group(1))
 
     def _toggle_quality(self, _event=None):
-        self.quality_box.configure(state="disabled" if self.kind.get() == "Audio MP3" else "readonly")
+        self.quality_box.configure(state="disabled" if self.kind.get() == "audio" else "readonly")
 
     def paste_url(self):
         try:
             self.url.set(self.clipboard_get().strip())
         except tk.TclError:
-            messagebox.showinfo(APP_NAME, "El portapapeles está vacío.")
+            messagebox.showinfo(APP_NAME, self.tr("clipboard.empty"))
 
     def choose_folder(self):
         selected = filedialog.askdirectory(initialdir=self.folder.get())
@@ -677,7 +766,7 @@ class DownloaderApp(tk.Tk):
             subprocess.Popen(["xdg-open", str(folder)])
 
     def open_recorder(self):
-        ScreenRecorder(self, self.folder.get())
+        ScreenRecorder(self, self.folder.get(), Translator(self.language_code.get()))
 
     def _settings_changed(self):
         self._save_state()
@@ -692,7 +781,7 @@ class DownloaderApp(tk.Tk):
     def _command(self, task):
         engine = self._engine()
         if not engine:
-            raise RuntimeError("No se encontró yt-dlp. Ejecuta INSTALAR_EN_WINDOWS.bat y vuelve a abrir la aplicación.")
+            raise RuntimeError(self.tr("engine.missing"))
         out = str(Path(task["folder"]).expanduser() / "%(title).180B [%(id)s].%(ext)s")
         cmd = [
             engine,
@@ -715,19 +804,14 @@ class DownloaderApp(tk.Tk):
             # yt-dlp's official Windows build includes curl_cffi for this mode.
             cmd += ["--extractor-args", "generic:impersonate"]
         cmd += ["--yes-playlist" if task["playlist"] else "--no-playlist"]
-        if task["kind"] == "Audio MP3":
+        if task["kind"] == "audio":
             cmd += ["-x", "--audio-format", "mp3", "--audio-quality", "0"]
         else:
             limits = {
-                "Máxima disponible": None,
-                "4320p (8K)": 4320,
-                "2160p (4K)": 2160,
-                "1440p (2K)": 1440,
-                "1080p": 1080,
-                "720p": 720,
-                "480p": 480,
+                "best": None, "4320": 4320, "2160": 2160, "1440": 1440,
+                "1080": 1080, "720": 720, "480": 480,
             }
-            height = limits[task["quality"]]
+            height = limits.get(str(task["quality"]))
             selector = "bv*+ba/b" if height is None else f"bv*[height<={height}]+ba/b[height<={height}]"
             cmd += ["-f", selector, "--merge-output-format", "mp4", "--remux-video", "mp4"]
         cmd.append(task["url"])
@@ -736,7 +820,7 @@ class DownloaderApp(tk.Tk):
     def add_download(self, url=None):
         url = (url or self.url.get()).strip()
         if not re.match(r"^https?://", url, re.I):
-            messagebox.showwarning(APP_NAME, "Pega un enlace válido que comience con http:// o https://")
+            messagebox.showwarning(APP_NAME, self.tr("url.invalid"))
             return
         folder = Path(self.folder.get()).expanduser()
         try:
@@ -748,7 +832,7 @@ class DownloaderApp(tk.Tk):
         task = {
             "id": task_id, "url": url, "title": url, "folder": str(folder),
             "kind": self.kind.get(), "quality": self.quality.get(), "playlist": bool(self.playlist.get()),
-            "status": "En cola", "progress": 0.0, "speed": "—", "eta": "—", "size": "—", "resolution": "Detectando…", "error": "",
+            "status": "En cola", "progress": 0.0, "speed": "—", "eta": "—", "size": "—", "resolution": self.tr("resolution.detecting"), "error": "",
         }
         self.tasks[task_id] = task
         self._upsert_task(task)
@@ -779,7 +863,8 @@ class DownloaderApp(tk.Tk):
 
     def _run_task(self, task_id, command):
         try:
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", startupinfo=startupinfo(), creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+            flags = (subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == "nt" else 0
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", startupinfo=startupinfo(), creationflags=flags)
             self.processes[task_id] = process
             self.starting.discard(task_id)
             self.events.put(("task_status", (task_id, "Descargando")))
@@ -815,6 +900,19 @@ class DownloaderApp(tk.Tk):
         active = [t["id"] for t in self.tasks.values() if t["status"] in ("Descargando", "Iniciando")]
         return active[:1]
 
+    @staticmethod
+    def _stop_download_process(process):
+        if not process or process.poll() is not None:
+            return
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                startupinfo=startupinfo(), creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        else:
+            process.terminate()
+
     def pause_selected(self):
         for task_id in self._selected_ids():
             task = self.tasks.get(task_id)
@@ -824,7 +922,7 @@ class DownloaderApp(tk.Tk):
             if process and process.poll() is None:
                 self.pause_requested.add(task_id)
                 task["status"] = "Pausando"
-                process.terminate()
+                self._stop_download_process(process)
             elif task["status"] == "En cola":
                 task["status"] = "Pausada"
             self._upsert_task(task)
@@ -848,7 +946,7 @@ class DownloaderApp(tk.Tk):
             process = self.processes.get(task_id)
             if process and process.poll() is None:
                 task["status"] = "Cancelada"
-                process.terminate()
+                self._stop_download_process(process)
             else:
                 task["status"] = "Cancelada"
             self._upsert_task(task)
@@ -864,19 +962,25 @@ class DownloaderApp(tk.Tk):
     def update_engine(self):
         engine = self._engine()
         if not engine:
-            messagebox.showerror(APP_NAME, "No se encontró yt-dlp. Ejecuta primero el instalador.")
+            messagebox.showerror(APP_NAME, self.tr("installer.first"))
             return
-        self.status.set("Actualizando motor…")
+        self.status.set(self.tr("status.updating"))
         threading.Thread(target=self._run_update, args=(engine,), daemon=True).start()
 
     def _run_update(self, engine):
         result = subprocess.run([engine, "-U"], capture_output=True, text=True, encoding="utf-8", errors="replace", startupinfo=startupinfo(), creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
         self.events.put(("log", (result.stdout + result.stderr).strip()))
-        self.events.put(("status", "Motor actualizado" if result.returncode == 0 else "No se pudo actualizar"))
+        self.events.put(("status", self.tr("status.updated") if result.returncode == 0 else self.tr("status.update_failed")))
 
     def _upsert_task(self, task):
-        file_format = "Audio MP3" if task.get("kind") == "Audio MP3" else task.get("resolution", "Detectando…")
-        values = (task["title"], file_format, task.get("size", "—"), task["status"], f'{task["progress"]:.1f}%', task["speed"], task["eta"])
+        file_format = self.tr("format.audio") if task.get("kind") == "audio" else task.get("resolution", self.tr("resolution.detecting"))
+        state_keys = {
+            "En cola": "state.queued", "Iniciando": "state.starting", "Descargando": "state.downloading",
+            "Pausando": "state.pausing", "Pausada": "state.paused", "Interrumpida": "state.interrupted",
+            "Error": "state.error", "Cancelada": "state.cancelled", "Terminada": "state.done",
+        }
+        display_state = self.tr(state_keys.get(task["status"], "state.error"))
+        values = (task["title"], file_format, task.get("size", "—"), display_state, f'{task["progress"]:.1f}%', task["speed"], task["eta"])
         if self.tree.exists(task["id"]):
             self.tree.item(task["id"], values=values)
         else:
@@ -958,7 +1062,7 @@ class DownloaderApp(tk.Tk):
     def _save_state(self):
         try:
             self.state_dir.mkdir(parents=True, exist_ok=True)
-            data = {"parallel": int(self.parallel_downloads.get()), "fragments": int(self.fragments.get()), "tasks": list(self.tasks.values())}
+            data = {"language": self.language_code.get(), "parallel": int(self.parallel_downloads.get()), "fragments": int(self.fragments.get()), "tasks": list(self.tasks.values())}
             temp = self.state_file.with_suffix(".tmp")
             temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
             temp.replace(self.state_file)
@@ -973,23 +1077,31 @@ class DownloaderApp(tk.Tk):
             self.parallel_downloads.set(max(1, min(6, int(data.get("parallel", 3)))))
             self.fragments.set(max(1, min(16, int(data.get("fragments", 8)))))
             for task in data.get("tasks", []):
+                old_kind = task.get("kind")
+                task["kind"] = "audio" if old_kind in ("audio", "Audio MP3") else "video"
+                old_quality = str(task.get("quality", "best"))
+                quality_migration = {
+                    "Máxima disponible": "best", "4320p (8K)": "4320", "2160p (4K)": "2160",
+                    "1440p (2K)": "1440", "1080p": "1080", "720p": "720", "480p": "480",
+                }
+                task["quality"] = quality_migration.get(old_quality, old_quality if old_quality in ("best", "4320", "2160", "1440", "1080", "720", "480") else "best")
                 task.setdefault("size", "—")
-                task.setdefault("resolution", "Audio MP3" if task.get("kind") == "Audio MP3" else "Pendiente")
+                task.setdefault("resolution", self.tr("format.audio") if task.get("kind") == "audio" else self.tr("resolution.pending"))
                 if task.get("status") in ("Descargando", "Iniciando", "Pausando", "En cola"):
                     task["status"] = "Interrumpida"
                 self.tasks[task["id"]] = task
                 self._upsert_task(task)
             if self.tasks:
-                self.status.set("Sesión anterior recuperada. Selecciona una descarga y pulsa Continuar.")
+                self.status.set(self.tr("status.recovered"))
         except (OSError, ValueError, KeyError, TypeError):
-            self.status.set("No se pudo leer el historial anterior.")
+            self.status.set(self.tr("status.read_failed"))
 
     def _close_app(self):
         active = [p for p in self.processes.values() if p.poll() is None]
-        if active and not messagebox.askyesno(APP_NAME, "Las descargas activas quedarán guardadas para continuarlas después. ¿Cerrar la aplicación?"):
+        if active and not messagebox.askyesno(APP_NAME, self.tr("close.active")):
             return
         for process in active:
-            process.terminate()
+            self._stop_download_process(process)
         for task in self.tasks.values():
             if task["status"] in ("Descargando", "Iniciando", "Pausando"):
                 task["status"] = "Interrumpida"
@@ -1007,24 +1119,20 @@ class DownloaderApp(tk.Tk):
     def _friendly_error(self):
         detail = "\n".join(self.recent_log).lower()
         if "http error 403" in detail or "403: forbidden" in detail:
-            return (
-                "El sitio rechazó la descarga (403 Forbidden). No es un problema de la carpeta. "
-                "Actualiza el motor y prueba una vez más; si continúa, el servidor no permite "
-                "la descarga automatizada de ese enlace."
-            )
+            return self.tr("error.403")
         if "drm" in detail:
-            return "El contenido parece protegido con DRM y Zeo Downloader no puede procesarlo."
+            return self.tr("error.drm")
         if "private video" in detail or "login required" in detail or "sign in" in detail:
-            return "El contenido es privado o requiere una cuenta. Usa únicamente la opción oficial del sitio."
+            return self.tr("error.private")
         if "not available in your country" in detail or "geo restricted" in detail:
-            return "El contenido tiene una restricción territorial y no está disponible desde esta ubicación."
+            return self.tr("error.geo")
         if "no active stream" in detail or "stream is offline" in detail:
-            return "La transmisión pública no está activa en este momento."
+            return self.tr("error.offline")
         if "unsupported url" in detail:
-            return "El motor todavía no reconoce esta página. Prueba Actualizar motor y vuelve a intentarlo."
+            return self.tr("error.unsupported")
         if "no impersonate target" in detail:
-            return "Falta el componente oficial de compatibilidad web. Ejecuta nuevamente el instalador de esta versión."
-        return "No se pudo completar. Revisa el detalle inferior y prueba Actualizar motor."
+            return self.tr("error.impersonate")
+        return self.tr("error.default")
 
     def _drain_events(self):
         try:
@@ -1039,7 +1147,7 @@ class DownloaderApp(tk.Tk):
                     self.lift()
                     self.focus_force()
                     self.add_download(value)
-                    self.status.set("Enlace de Firefox agregado al monitor de descargas.")
+                    self.status.set(self.tr("status.extension"))
                 elif kind == "task_status":
                     task_id, state = value
                     if task_id in self.tasks:
@@ -1068,7 +1176,7 @@ class DownloaderApp(tk.Tk):
                         if size:
                             task["size"] = size
                         self._upsert_task(task)
-                        self.status.set(f"{len(self.processes)} descarga(s) activa(s)")
+                        self.status.set(self.tr("status.active", count=len(self.processes)))
                         self._save_state()
                 elif kind == "task_log":
                     task_id, line = value

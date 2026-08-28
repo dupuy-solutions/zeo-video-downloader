@@ -1,6 +1,16 @@
 ZEO VIDEO DOWNLOADER PARA WINDOWS
 =================================
 
+VERSIÓN 1.9
+- Nueva interfaz internacional con detección automática de Windows y selector
+  persistente de idioma: español, inglés, portugués, alemán, francés, italiano
+  y chino simplificado.
+- Traducción del monitor, controles, estados, mensajes y grabador de pantalla.
+- Nuevo logo oficial de Zeo en la aplicación, acceso directo y complemento Firefox.
+- Botón opcional "Apoyar a Zeo" mediante Mercado Pago.
+- Pausa de YouTube corregida: ahora detiene también los procesos secundarios de
+  fragmentos y conserva el archivo parcial para continuar posteriormente.
+
 VERSIÓN 1.8
 - La columna Calidad ahora se llama Formato y muestra la resolución real del
   archivo seleccionado, por ejemplo 1920×860, en vez de "Máxima disponible".
@@ -75,7 +85,16 @@ USO
 2. Pulsa Pegar.
 3. Elige Video MP4 o Audio MP3, calidad y carpeta. En video puedes seleccionar
    máxima disponible, 8K, 4K, 2K, 1080p, 720p o 480p.
-4. Pulsa Descargar.
+4. Pulsa Iniciar.
+
+IDIOMA
+- Zeo utiliza inicialmente el idioma de Windows cuando está disponible.
+- Puedes cambiarlo desde el selector de la esquina superior derecha.
+- La elección se conserva al cerrar y abrir nuevamente la aplicación.
+
+APOYO OPCIONAL
+- El botón "Apoyar a Zeo" abre el enlace público de DUPUY+SOLUTIONS en
+  Mercado Pago. No es necesario aportar para utilizar todas las funciones.
 
 NOTAS
 - La lista completa se descarga solo si marcas esa alternativa.
