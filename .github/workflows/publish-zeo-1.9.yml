@@ -1,0 +1,28 @@
+name: Publish Zeo 1.9
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/publish-zeo-1.9.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.9 >/dev/null 2>&1; then
+            echo "Release v1.9 already exists."
+            exit 0
+          fi
+          gh release create v1.9             downloads/ZeoVideoDownloader_Windows_1.9.zip             downloads/ZeoVideoDownloader_Windows_1.9.sha256             --title "Zeo Video Downloader 1.9"             --notes "Primera versión internacional de Zeo Video Downloader. Incluye interfaz en siete idiomas, monitor de descargas múltiples, pausa y continuación reforzadas, recuperación tras reiniciar, grabación de pantalla, complemento experimental de Firefox y enlaces voluntarios de apoyo. Úsalo únicamente con contenido propio o autorizado."
