@@ -5,7 +5,7 @@ title Instalador - ZEO Downloader 2.0 PRO
 cd /d "%~dp0"
 
 echo ==========================================
-echo   ZEO Downloader 2.0 PRO - Instalacion
+echo   ZEO Downloader 2.0 PRO.3 - Instalacion
 echo ==========================================
 echo.
 echo Se instalaran/actualizaran los componentes necesarios.
@@ -24,34 +24,53 @@ winget upgrade --id yt-dlp.yt-dlp -e --accept-package-agreements --accept-source
 if errorlevel 1 winget install --id yt-dlp.yt-dlp -e --accept-package-agreements --accept-source-agreements
 winget install --id Gyan.FFmpeg -e --accept-package-agreements --accept-source-agreements
 winget install --id DenoLand.Deno -e --accept-package-agreements --accept-source-agreements
-winget install --id Microsoft.Edge -e --accept-package-agreements --accept-source-agreements
 
 echo.
-echo Instalando automatizacion oficial de navegador para Suno...
+echo Instalando Playwright para el soporte Suno...
 where py >nul 2>&1
 if %errorlevel%==0 (
-  py -m pip install --upgrade pip selenium
-) else (
-  python -m pip install --upgrade pip selenium
-)
-if errorlevel 1 (
+  py -m pip install --upgrade pip playwright
+  if errorlevel 1 goto :playwright_error
   echo.
-  echo ERROR: No se pudo instalar Selenium.
-  echo Cierra esta ventana, reinicia Windows si Python se acaba de instalar y ejecuta este archivo nuevamente.
-  pause
-  exit /b 1
+  echo Descargando Chromium integrado de ZEO...
+  py -m playwright install chromium
+  if errorlevel 1 goto :chromium_error
+) else (
+  python -m pip install --upgrade pip playwright
+  if errorlevel 1 goto :playwright_error
+  echo.
+  echo Descargando Chromium integrado de ZEO...
+  python -m playwright install chromium
+  if errorlevel 1 goto :chromium_error
 )
 
 echo.
-echo Instalacion ZEO 2.0 PRO terminada.
+echo ==========================================
+echo   INSTALACION COMPLETADA
+ echo ==========================================
 echo.
-echo Para abrirlo ejecuta:
+echo Para abrir ZEO ejecuta:
 echo   ABRIR_ZEO_2_PRO.bat
 echo.
-echo IMPORTANTE SUNO:
-echo - La primera descarga abrira una ventana de Edge controlada por ZEO.
-echo - Inicia sesion en Suno alli una sola vez.
-echo - ZEO usa el menu oficial Download de Suno y respeta sus limites de descarga.
+echo SUNO:
+echo - ZEO abrira un Chromium independiente.
+echo - La primera vez inicia sesion en Suno alli.
+echo - La sesion quedara guardada para usos posteriores.
+echo - ZEO usa el flujo oficial Download y respeta el cupo de Suno.
 echo.
 pause
-endlocal
+exit /b 0
+
+:playwright_error
+echo.
+echo ERROR: No se pudo instalar Playwright.
+echo Reinicia Windows si Python se acaba de instalar y ejecuta este instalador nuevamente.
+pause
+exit /b 1
+
+:chromium_error
+echo.
+echo ERROR: No se pudo descargar Chromium.
+echo Revisa tu conexion a Internet y ejecuta este instalador nuevamente.
+pause
+exit /b 1
