@@ -5,7 +5,7 @@ title Instalador - ZEO Downloader 2.0 PRO
 cd /d "%~dp0"
 
 echo ==========================================
-echo   ZEO Downloader 2.0 PRO.3 - Instalacion
+echo   ZEO Downloader 2.0 PRO.4 - Instalacion
 echo ==========================================
 echo.
 echo Se instalaran/actualizaran los componentes necesarios.
@@ -53,9 +53,9 @@ echo Para abrir ZEO ejecuta:
 echo   ABRIR_ZEO_2_PRO.bat
 echo.
 echo SUNO:
-echo - ZEO abrira un Chromium independiente.
+echo - ZEO abre un Chromium limpio en cada descarga.
 echo - La primera vez inicia sesion en Suno alli.
-echo - La sesion quedara guardada para usos posteriores.
+echo - ZEO guarda cookies/sesion sin reutilizar un perfil bloqueable del navegador.
 echo - ZEO usa el flujo oficial Download y respeta el cupo de Suno.
 echo.
 pause
