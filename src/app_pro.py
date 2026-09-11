@@ -10,7 +10,7 @@ from app import DownloaderApp as BaseDownloaderApp
 
 
 APP_NAME = "Zeo Downloader PRO"
-APP_VERSION = "2.0-pro.3"
+APP_VERSION = "2.0-pro.4"
 
 
 class DownloaderApp(BaseDownloaderApp):
@@ -50,7 +50,7 @@ class DownloaderApp(BaseDownloaderApp):
             ttk.Label(pro_bar, text="ZEO 2.0 PRO", style="Title.TLabel").pack(side="left")
             ttk.Label(
                 pro_bar,
-                text="Video + Audio · Suno autenticado · motor Chromium integrado",
+                text="Video + Audio · Suno autenticado · descarga oficial automatizada",
                 style="Hint.TLabel",
             ).pack(side="left", padx=(12, 0))
         except Exception:
@@ -58,9 +58,10 @@ class DownloaderApp(BaseDownloaderApp):
 
     def _new_suno_task(self, url: str):
         import uuid
+
         folder = Path(self.folder.get()).expanduser()
         folder.mkdir(parents=True, exist_ok=True)
-        song_id = self._suno_song_id(url) or "canción"
+        song_id = self._suno_song_id(url) or "cancion"
         task_id = uuid.uuid4().hex
         task = {
             "id": task_id,
@@ -95,142 +96,127 @@ class DownloaderApp(BaseDownloaderApp):
         if not messagebox.askyesno(
             APP_NAME,
             "Suno detectado.\n\n"
-            "ZEO abrirá su navegador Chromium independiente y usará el flujo oficial Download de Suno.\n"
-            "La primera vez inicia sesión en esa ventana. La sesión quedará guardada.\n\n"
-            "La descarga consume el cupo normal de Suno.\n\n¿Descargar como MP3 ahora?",
+            "ZEO abrira Chromium y usara el flujo oficial Download de Suno.\n"
+            "La primera vez inicia sesion en esa ventana. ZEO guardara la sesion para la proxima descarga.\n\n"
+            "La descarga consume el cupo normal de Suno.\n\n"
+            "¿Descargar como MP3 ahora?",
         ):
             self.status.set("Suno detectado · descarga cancelada")
             return
 
         task_id, folder = self._new_suno_task(url)
         self.url.set("")
-        self.status.set("Suno · iniciando Chromium…")
+        self.status.set("Suno · abriendo Chromium…")
         threading.Thread(
-            target=self._run_suno_playwright,
+            target=self._run_suno_official_download,
             args=(task_id, url, folder),
             daemon=True,
         ).start()
 
     @staticmethod
-    def _first_visible(locator):
+    def _visible(locator):
         try:
-            count = min(locator.count(), 30)
+            count = locator.count()
         except Exception:
-            return None
-        for i in range(count):
+            return []
+        result = []
+        for index in range(min(count, 40)):
+            item = locator.nth(index)
             try:
-                item = locator.nth(i)
                 if item.is_visible() and item.is_enabled():
-                    return item
+                    result.append(item)
             except Exception:
                 pass
-        return None
+        return result
 
-    def _click_visible(self, locator):
-        item = self._first_visible(locator)
-        if item is None:
-            return False
+    def _save_suno_session(self, context, auth_file: Path):
         try:
-            item.scroll_into_view_if_needed(timeout=1500)
+            context.storage_state(path=str(auth_file), indexed_db=True)
+        except TypeError:
+            try:
+                context.storage_state(path=str(auth_file))
+            except Exception:
+                pass
         except Exception:
             pass
+
+    def _try_click_suno_download(self, page):
+        """Try Suno's visible Download controls only. Return True if clicked."""
         try:
-            item.click(timeout=2500)
-            return True
-        except Exception:
-            try:
-                item.evaluate("el => el.click()")
-                return True
-            except Exception:
-                return False
-
-    def _attempt_suno_download_click(self, page):
-        """Try Suno's visible controls. Returns True if a Download action was clicked."""
-        import re as _re
-
-        # Direct Download button/menu item, if the layout exposes one.
-        direct_candidates = [
-            page.get_by_role("button", name=_re.compile("download", _re.I)),
-            page.get_by_role("menuitem", name=_re.compile("download", _re.I)),
-            page.get_by_text(_re.compile(r"^download$", _re.I)),
-        ]
-        for locator in direct_candidates:
-            if self._click_visible(locator):
-                time.sleep(0.5)
-                mp3 = self._first_visible(page.get_by_text(_re.compile("mp3", _re.I)))
-                if mp3 is not None:
-                    try:
-                        mp3.click(timeout=2500)
-                    except Exception:
-                        try:
-                            mp3.evaluate("el => el.click()")
-                        except Exception:
-                            pass
-                return True
-
-        # Open likely More/ellipsis menus one by one until Download appears.
-        more_sets = [
-            page.locator('button[aria-label*="more" i]'),
-            page.locator('button[title*="more" i]'),
-            page.locator('button[aria-haspopup="menu"]'),
-            page.locator('button').filter(has_text=_re.compile(r"^(\.\.\.|…|⋯)$")),
-        ]
-
-        seen = set()
-        candidates = []
-        for locator in more_sets:
-            try:
-                for i in range(min(locator.count(), 30)):
-                    el = locator.nth(i)
-                    key = None
-                    try:
-                        key = el.get_attribute("aria-label") or el.get_attribute("data-testid")
-                    except Exception:
-                        pass
-                    key = key or f"{id(locator)}:{i}"
-                    if key not in seen:
-                        seen.add(key)
-                        candidates.append(el)
-            except Exception:
-                pass
-
-        for more in candidates[:30]:
-            try:
-                if not more.is_visible() or not more.is_enabled():
-                    continue
+            direct = self._visible(
+                page.locator("button, a, [role='button'], [role='menuitem'], [role='option']")
+                .filter(has_text=re.compile(r"download", re.I))
+            )
+            for item in direct[:6]:
                 try:
-                    more.scroll_into_view_if_needed(timeout=1000)
+                    item.click(timeout=1500)
+                    page.wait_for_timeout(500)
+                    mp3 = self._visible(
+                        page.locator("button, a, [role='button'], [role='menuitem'], [role='option']")
+                        .filter(has_text=re.compile(r"mp3", re.I))
+                    )
+                    if mp3:
+                        mp3[0].click(timeout=1500)
+                    return True
                 except Exception:
                     pass
-                try:
-                    more.click(timeout=2000)
-                except Exception:
-                    more.evaluate("el => el.click()")
-                time.sleep(0.45)
+        except Exception:
+            pass
 
-                download = self._first_visible(page.get_by_text(_re.compile(r"^download", _re.I)))
-                if download is None:
-                    try:
-                        page.keyboard.press("Escape")
-                    except Exception:
-                        pass
+        candidate_selectors = [
+            "button[aria-label*='More']",
+            "button[aria-label*='more']",
+            "button[title*='More']",
+            "button[title*='more']",
+            "button[data-testid*='more']",
+            "button[data-testid*='menu']",
+            "button[data-testid*='action']",
+            "[role='button'][aria-haspopup='menu']",
+        ]
+
+        candidates = []
+        for selector in candidate_selectors:
+            try:
+                candidates.extend(self._visible(page.locator(selector)))
+            except Exception:
+                pass
+        try:
+            candidates.extend(
+                self._visible(page.get_by_role("button", name=re.compile(r"^(…|⋯|\.\.\.)$")))
+            )
+        except Exception:
+            pass
+
+        seen = set()
+        unique = []
+        for item in candidates:
+            try:
+                key = str(item)
+            except Exception:
+                key = id(item)
+            if key not in seen:
+                seen.add(key)
+                unique.append(item)
+
+        for more in unique[:24]:
+            try:
+                more.click(timeout=1500)
+                page.wait_for_timeout(400)
+                downloads = self._visible(
+                    page.locator("button, a, [role='button'], [role='menuitem'], [role='option']")
+                    .filter(has_text=re.compile(r"download", re.I))
+                )
+                if not downloads:
+                    page.keyboard.press("Escape")
                     continue
-
-                try:
-                    download.click(timeout=2500)
-                except Exception:
-                    download.evaluate("el => el.click()")
-                time.sleep(0.45)
-
-                mp3 = self._first_visible(page.get_by_text(_re.compile("mp3", _re.I)))
-                if mp3 is not None:
-                    try:
-                        mp3.click(timeout=2500)
-                    except Exception:
-                        try:
-                            mp3.evaluate("el => el.click()")
-                        except Exception:
-                            pass
+                downloads[0].click(timeout=1500)
+                page.wait_for_timeout(500)
+                mp3 = self._visible(
+                    page.locator("button, a, [role='button'], [role='menuitem'], [role='option']")
+                    .filter(has_text=re.compile(r"mp3", re.I))
+                )
+                if mp3:
+                    mp3[0].click(timeout=1500)
                 return True
             except Exception:
                 try:
@@ -239,133 +225,128 @@ class DownloaderApp(BaseDownloaderApp):
                     pass
         return False
 
-    def _run_suno_playwright(self, task_id: str, url: str, folder: Path):
-        playwright = None
+    def _run_suno_official_download(self, task_id: str, url: str, folder: Path):
+        browser = None
         context = None
-        download_done = threading.Event()
-        downloaded_path = {"path": None, "error": None}
-
+        playwright = None
         try:
             try:
                 from playwright.sync_api import sync_playwright
             except ImportError:
                 raise RuntimeError(
-                    "Falta Playwright. Ejecuta INSTALAR_ZEO_2_PRO.bat de la versión nueva y vuelve a abrir ZEO."
+                    "Playwright no esta instalado. Ejecuta INSTALAR_ZEO_2_PRO.bat y vuelve a abrir ZEO."
                 )
 
             folder = folder.resolve()
-            profile = (self.state_dir / "SunoChromiumProfile").resolve()
-            profile.mkdir(parents=True, exist_ok=True)
+            auth_file = self.state_dir / "suno_auth.json"
+            self.state_dir.mkdir(parents=True, exist_ok=True)
 
-            self.events.put(("status", "Suno · cargando motor Chromium…"))
-            self.events.put(("log", "Suno: iniciando Playwright/Chromium…"))
-
+            self.events.put(("log", "Suno: iniciando Chromium limpio…"))
             playwright = sync_playwright().start()
+            browser = playwright.chromium.launch(
+                headless=False,
+                args=["--start-maximized"],
+            )
+
+            context_kwargs = {
+                "accept_downloads": True,
+                "viewport": None,
+            }
+            if auth_file.exists():
+                context_kwargs["storage_state"] = str(auth_file)
+                self.events.put(("log", "Suno: restaurando sesion guardada."))
+
             try:
-                context = playwright.chromium.launch_persistent_context(
-                    user_data_dir=str(profile),
-                    headless=False,
-                    accept_downloads=True,
-                    viewport=None,
-                    timeout=20000,
-                    args=["--start-maximized"],
-                )
-            except Exception as exc:
-                raise RuntimeError(
-                    "Chromium no pudo iniciar. Ejecuta INSTALAR_ZEO_2_PRO.bat para instalar el navegador integrado. "
-                    f"Detalle: {exc}"
-                )
+                context = browser.new_context(**context_kwargs)
+            except Exception:
+                # If Suno changed/invalidated the saved auth state, retry clean.
+                context_kwargs.pop("storage_state", None)
+                context = browser.new_context(**context_kwargs)
+
+            page = context.new_page()
+            downloaded_path = {"path": None}
+            download_event = threading.Event()
 
             def on_download(download):
                 try:
-                    target = folder / download.suggested_filename
-                    base = target.stem
-                    suffix = target.suffix
-                    n = 1
-                    while target.exists():
-                        target = folder / f"{base} ({n}){suffix}"
-                        n += 1
-                    download.save_as(str(target))
-                    downloaded_path["path"] = target
+                    suggested = download.suggested_filename or f"suno_{int(time.time())}.mp3"
+                    destination = folder / suggested
+                    download.save_as(str(destination))
+                    downloaded_path["path"] = destination
+                    download_event.set()
+                    self.events.put(("log", f"Suno: archivo recibido → {destination.name}"))
                 except Exception as exc:
-                    downloaded_path["error"] = str(exc)
-                finally:
-                    download_done.set()
+                    self.events.put(("log", f"Suno: no se pudo guardar la descarga: {exc}"))
 
-            def attach(page):
-                try:
-                    page.on("download", on_download)
-                except Exception:
-                    pass
-
-            context.on("page", attach)
-            page = context.pages[0] if context.pages else context.new_page()
-            attach(page)
-
+            page.on("download", on_download)
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
             self.events.put(("task_status", (task_id, "Descargando")))
             self.events.put(("status", "Suno · Chromium abierto"))
-            self.events.put(("log", "Suno: abriendo canción…"))
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            self.events.put(("log", "Suno: si aparece Login, inicia sesion en esta ventana. ZEO esperara."))
 
-            # Give the user time to log in while ZEO repeatedly looks for the visible Download control.
-            auto_deadline = time.time() + 60
-            action_clicked = False
-            while time.time() < auto_deadline and not download_done.is_set():
-                try:
-                    if self._attempt_suno_download_click(page):
-                        action_clicked = True
-                        self.events.put(("log", "Suno: control Download accionado."))
-                        break
-                except Exception:
-                    pass
-                time.sleep(2)
+            auto_clicked = False
+            deadline = time.time() + 120
+            last_session_save = 0
+            while time.time() < deadline and not download_event.is_set():
+                if time.time() - last_session_save > 5:
+                    self._save_suno_session(context, auth_file)
+                    last_session_save = time.time()
+                if not auto_clicked:
+                    auto_clicked = self._try_click_suno_download(page)
+                    if auto_clicked:
+                        self.events.put(("log", "Suno: ZEO acciono el control oficial Download."))
+                page.wait_for_timeout(1000)
 
-            if action_clicked and not download_done.is_set():
-                self.events.put(("status", "Suno · esperando archivo MP3…"))
-                download_done.wait(90)
-
-            if not download_done.is_set():
-                # Reliable fallback: keep the controlled browser open and capture the user's official click.
-                self.events.put(("status", "Suno · pulsa ⋯ → Download → MP3 en Chromium"))
-                self.events.put(("log", "Suno: modo asistido activo; ZEO capturará y guardará la descarga automáticamente."))
+            if not download_event.is_set():
+                self.events.put(("log", "Suno: modo asistido. Pulsa manualmente ⋯ > Download > MP3 en Chromium."))
+                self.events.put(("status", "Suno · pulsa Download > MP3 en Chromium"))
                 self.after(0, lambda: messagebox.showinfo(
                     APP_NAME,
-                    "Suno está abierto en el navegador de ZEO.\n\n"
-                    "Si todavía no iniciaste sesión, hazlo ahora. Luego pulsa:\n\n"
+                    "ZEO no identifico automaticamente el menu actual de Suno.\n\n"
+                    "En la ventana Chromium pulsa:\n\n"
                     "⋯  →  Download  →  MP3\n\n"
-                    "ZEO detectará la descarga y la guardará automáticamente en la carpeta elegida.",
+                    "Deja ZEO abierto. Capturara y guardara el archivo automaticamente.",
                 ))
-                download_done.wait(300)
 
-            if not download_done.is_set():
-                raise RuntimeError("No se recibió una descarga de Suno en 5 minutos.")
-            if downloaded_path["error"]:
-                raise RuntimeError("Suno inició la descarga, pero no pude guardar el archivo: " + downloaded_path["error"])
-            if not downloaded_path["path"]:
-                raise RuntimeError("Suno inició la descarga, pero ZEO no recibió la ruta del archivo.")
+                assisted_deadline = time.time() + 300
+                while time.time() < assisted_deadline and not download_event.is_set():
+                    self._save_suno_session(context, auth_file)
+                    page.wait_for_timeout(1000)
 
-            self._finish_suno_task(task_id, downloaded_path["path"])
+            self._save_suno_session(context, auth_file)
+
+            if not download_event.is_set() or not downloaded_path["path"]:
+                raise RuntimeError("No se detecto una descarga de audio de Suno en el tiempo disponible.")
+
+            path = downloaded_path["path"]
+            self._finish_suno_task(task_id, path)
 
         except Exception as exc:
             message = str(exc)
             self.events.put(("log", f"Suno ERROR: {message}"))
             self.events.put(("task_error", (task_id, message)))
-            self.events.put(("status", f"Suno ERROR · {message[:110]}"))
+            self.events.put(("status", f"Suno ERROR · {message[:100]}"))
             self.after(0, lambda m=message: messagebox.showerror(
                 APP_NAME,
-                "La descarga de Suno no pudo completarse.\n\nDetalle técnico:\n" + m,
+                "La descarga de Suno no pudo completarse.\n\n"
+                "Detalle tecnico:\n" + m,
             ))
         finally:
-            if context is not None:
-                try:
+            try:
+                if context is not None:
                     context.close()
-                except Exception:
-                    pass
-            if playwright is not None:
-                try:
+            except Exception:
+                pass
+            try:
+                if browser is not None:
+                    browser.close()
+            except Exception:
+                pass
+            try:
+                if playwright is not None:
                     playwright.stop()
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
     def _finish_suno_task(self, task_id, downloaded: Path):
         task = self.tasks.get(task_id)
@@ -385,10 +366,12 @@ class DownloaderApp(BaseDownloaderApp):
         if not re.match(r"^https?://", url, re.I):
             messagebox.showwarning(APP_NAME, self.tr("url.invalid"))
             return
+
         platform = self._platform(url)
         if platform == "suno":
             self._handle_suno(url)
             return
+
         self.status.set(f"Plataforma detectada: {platform}")
         return super().add_download(url)
 
