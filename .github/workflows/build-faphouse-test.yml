@@ -1,0 +1,68 @@
+name: Build private FapHouse test
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build-faphouse-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare test source
+        shell: pwsh
+        run: |
+          $c = Get-Content src/app.py -Raw
+          $c = $c -replace 'APP_VERSION = "1.9"', 'APP_VERSION = "1.9.1 TEST"'
+          Set-Content src/app_test.py $c -Encoding UTF8
+
+      - name: Validate source
+        run: python -m py_compile src/app_test.py src/i18n.py
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pyinstaller
+
+      - name: Build Zeo test executable
+        shell: pwsh
+        run: pyinstaller --noconfirm --clean --windowed --onefile --name "ZeoVideoDownloader_FapHouse_TEST" --paths src --add-data "src/assets;assets" src/app_test.py
+
+      - name: Download yt-dlp
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "package/yt-dlp.exe"
+
+      - name: Prepare ffmpeg
+        shell: pwsh
+        run: |
+          $ffmpeg = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
+          if (-not $ffmpeg) { choco install ffmpeg -y --no-progress; $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source }
+          Copy-Item $ffmpeg "package/ffmpeg.exe"
+
+      - name: Assemble test package
+        shell: pwsh
+        run: |
+          Copy-Item "dist/ZeoVideoDownloader_FapHouse_TEST.exe" "package/"
+          $txt = @('ZEO VIDEO DOWNLOADER - FAPHOUSE TEST','','Build privado de prueba.','Perfil FapHouse:','- 16 fragmentos HLS simultaneos por video.','- HLS nativo.','- Buffer de 16 MB.','- Bloques HTTP de 10 MB.','- Una descarga FapHouse activa a la vez para evitar repartir ancho de banda.','','Uso: abrir ZeoVideoDownloader_FapHouse_TEST.exe.','No reemplaza la version publica 1.9.')
+          Set-Content "package/LEEME_TEST.txt" $txt -Encoding UTF8
+
+      - name: Upload private test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZeoDownloader-FapHouse-TEST
+          path: package/
+          retention-days: 3
+          compression-level: 6
