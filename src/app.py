@@ -783,6 +783,15 @@ class DownloaderApp(tk.Tk):
         if not engine:
             raise RuntimeError(self.tr("engine.missing"))
         out = str(Path(task["folder"]).expanduser() / "%(title).180B [%(id)s].%(ext)s")
+        hostname = (urlparse(task["url"]).hostname or "").lower()
+        is_faphouse = hostname == "faphouse.com" or hostname.endswith(".faphouse.com")
+        fragment_count = max(1, min(16, int(self.fragments.get())))
+        if is_faphouse:
+            # FapHouse serves video through HLS and may rate-limit aggressive multi-video traffic.
+            # Maximize throughput per video with native HLS + 16 fragment workers, while the
+            # scheduler below keeps FapHouse downloads to one active video at a time.
+            fragment_count = 16
+
         cmd = [
             engine,
             "--newline",
@@ -794,11 +803,16 @@ class DownloaderApp(tk.Tk):
             "--fragment-retries", "infinite",
             "--retry-sleep", "exp=1:30",
             "--socket-timeout", "30",
-            "--concurrent-fragments", str(max(1, min(16, int(self.fragments.get())))),
+            "--concurrent-fragments", str(fragment_count),
             "--print", "before_dl:ZEO_META|%(resolution)s|%(filesize_approx)s",
             "-o", out,
         ]
-        hostname = (urlparse(task["url"]).hostname or "").lower()
+        if is_faphouse:
+            cmd += [
+                "--hls-prefer-native",
+                "--buffer-size", "16M",
+                "--http-chunk-size", "10M",
+            ]
         if hostname == "xfree.com" or hostname.endswith(".xfree.com"):
             # xfree.com protects its public page with TLS/browser fingerprinting.
             # yt-dlp's official Windows build includes curl_cffi for this mode.
@@ -840,13 +854,29 @@ class DownloaderApp(tk.Tk):
         self._save_state()
         self._schedule()
 
+    @staticmethod
+    def _is_faphouse_url(url):
+        hostname = (urlparse(url).hostname or "").lower()
+        return hostname == "faphouse.com" or hostname.endswith(".faphouse.com")
+
     def _schedule(self):
         limit = max(1, min(6, int(self.parallel_downloads.get())))
+        active_ids = set(self.processes) | set(self.starting)
+        active_faphouse = any(
+            self._is_faphouse_url(self.tasks.get(task_id, {}).get("url", ""))
+            for task_id in active_ids
+        )
         for task in list(self.tasks.values()):
             if len(self.processes) + len(self.starting) >= limit:
                 break
-            if task["status"] == "En cola":
-                self._start_task(task)
+            if task["status"] != "En cola":
+                continue
+            is_faphouse = self._is_faphouse_url(task.get("url", ""))
+            if is_faphouse and active_faphouse:
+                continue
+            self._start_task(task)
+            if is_faphouse:
+                active_faphouse = True
 
     def _start_task(self, task):
         try:
