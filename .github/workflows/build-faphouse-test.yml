@@ -48,9 +48,11 @@ jobs:
       - name: Prepare ffmpeg
         shell: pwsh
         run: |
-          $ffmpeg = (Get-Command ffmpeg -ErrorAction SilentlyContinue).Source
-          if (-not $ffmpeg) { choco install ffmpeg -y --no-progress; $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source }
-          Copy-Item $ffmpeg "package/ffmpeg.exe"
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
+          Expand-Archive "ffmpeg.zip" -DestinationPath "ffmpeg_build"
+          $ffmpeg = Get-ChildItem "ffmpeg_build" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+          if (-not $ffmpeg) { throw "ffmpeg.exe not found in downloaded package" }
+          Copy-Item $ffmpeg.FullName "package/ffmpeg.exe"
 
       - name: Assemble test package
         shell: pwsh
